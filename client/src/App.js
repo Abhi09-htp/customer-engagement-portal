@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
 
+const API_BASE = "http://localhost:3000";
+// later we will switch this to Railway
+
 function App() {
   const [customers, setCustomers] = useState([]);
   const [name, setName] = useState("");
@@ -11,9 +14,20 @@ function App() {
   const [editEmail, setEditEmail] = useState("");
 
   const fetchCustomers = async () => {
-    const res = await fetch("http://localhost:3000/customers");
-    const data = await res.json();
-    setCustomers(data);
+    try {
+      const res = await fetch(`${API_BASE}/customers`);
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        setCustomers(data);
+      } else {
+        setCustomers([]);
+      }
+    } catch (err) {
+      console.error(err);
+      setCustomers([]);
+      setMessage("Unable to load customers");
+    }
   };
 
   useEffect(() => {
@@ -24,29 +38,33 @@ function App() {
     e.preventDefault();
     setMessage("");
 
-    const res = await fetch("http://localhost:3000/customers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email })
-    });
+    try {
+      const res = await fetch(`${API_BASE}/customers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email })
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) {
-      setMessage(data.message);
-      return;
+      if (!res.ok) {
+        setMessage(data.message || "Failed to add customer");
+        return;
+      }
+
+      setMessage("Customer added successfully");
+      setName("");
+      setEmail("");
+      fetchCustomers();
+    } catch {
+      setMessage("Server error");
     }
-
-    setMessage("Customer added successfully");
-    setName("");
-    setEmail("");
-    fetchCustomers();
   };
 
   const deleteCustomer = async (id) => {
     if (!window.confirm("Delete this customer?")) return;
 
-    await fetch(`http://localhost:3000/customers/${id}`, {
+    await fetch(`${API_BASE}/customers/${id}`, {
       method: "DELETE"
     });
 
@@ -65,7 +83,7 @@ function App() {
   };
 
   const saveEdit = async (id) => {
-    const res = await fetch(`http://localhost:3000/customers/${id}`, {
+    const res = await fetch(`${API_BASE}/customers/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: editName, email: editEmail })
@@ -74,7 +92,7 @@ function App() {
     const data = await res.json();
 
     if (!res.ok) {
-      setMessage(data.message);
+      setMessage(data.message || "Update failed");
       return;
     }
 
@@ -92,7 +110,9 @@ function App() {
       borderRadius: "8px",
       fontFamily: "Arial"
     }}>
-      <h1 style={{ textAlign: "center" }}>Customer Engagement Portal</h1>
+      <h1 style={{ textAlign: "center" }}>
+        Customer Engagement Portal
+      </h1>
 
       <h3>Add Customer</h3>
 
@@ -113,10 +133,10 @@ function App() {
           style={{ width: "100%", padding: "8px" }}
         />
         <br /><br />
-        <button style={{ padding: "8px 16px" }}>Add Customer</button>
+        <button>Add Customer</button>
       </form>
 
-      {message && <p style={{ marginTop: "10px" }}>{message}</p>}
+      {message && <p>{message}</p>}
 
       <hr />
 
@@ -125,36 +145,31 @@ function App() {
       {customers.length === 0 ? (
         <p>No customers found</p>
       ) : (
-        <ul style={{ paddingLeft: "0", listStyle: "none" }}>
+        <ul style={{ listStyle: "none", padding: 0 }}>
           {customers.map((c) => (
             <li key={c.id} style={{ marginBottom: "10px" }}>
               {editingId === c.id ? (
                 <>
-                  <input value={editName}
-                    onChange={(e) => setEditName(e.target.value)} />
-                  <input value={editEmail}
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                  />
+                  <input
+                    value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
-                    style={{ marginLeft: "5px" }} />
+                    style={{ marginLeft: "5px" }}
+                  />
                   <button onClick={() => saveEdit(c.id)}>Save</button>
-                  <button onClick={cancelEdit} style={{ marginLeft: "5px" }}>
-                    Cancel
-                  </button>
+                  <button onClick={cancelEdit}>Cancel</button>
                 </>
               ) : (
                 <>
                   <strong>{c.name}</strong> — {c.email}
-                  <button onClick={() => startEdit(c)} style={{ marginLeft: "10px" }}>
-                    Edit
-                  </button>
+                  <button onClick={() => startEdit(c)}>Edit</button>
                   <button
                     onClick={() => deleteCustomer(c.id)}
-                    style={{
-                      marginLeft: "5px",
-                      background: "red",
-                      color: "white",
-                      border: "none",
-                      padding: "4px 8px"
-                    }}>
+                    style={{ background: "red", color: "white" }}
+                  >
                     Delete
                   </button>
                 </>
