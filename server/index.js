@@ -19,7 +19,8 @@ app.get("/customers", async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("GET /customers error:", err.message);
+    res.status(500).json({ message: "Failed to fetch customers" });
   }
 });
 
@@ -44,7 +45,18 @@ app.post("/customers", async (req, res) => {
       customer: result.rows[0]
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("POST /customers error:", err.message);
+
+    // duplicate email error (PostgreSQL)
+    if (err.code === "23505") {
+      return res.status(409).json({
+        message: "Customer with this email already exists"
+      });
+    }
+
+    res.status(500).json({
+      message: "Failed to add customer"
+    });
   }
 });
 
