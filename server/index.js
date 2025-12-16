@@ -1,10 +1,12 @@
 const express = require("express");
+const cors = require("cors");
 const pool = require("./db");
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.use(cors());
 
 // home route
 app.get("/", (req, res) => {
@@ -47,7 +49,6 @@ app.post("/customers", async (req, res) => {
   } catch (err) {
     console.error("POST /customers error:", err.message);
 
-    // duplicate email error (PostgreSQL)
     if (err.code === "23505") {
       return res.status(409).json({
         message: "Customer with this email already exists"
