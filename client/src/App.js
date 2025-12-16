@@ -6,17 +6,22 @@ function App() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
 
-  const fetchCustomers = () => {
-    fetch("http://localhost:3000/customers")
-      .then((res) => res.json())
-      .then((data) => setCustomers(data))
-      .catch(() => setMessage("Failed to load customers"));
+  // Fetch customers
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch("http://localhost:3000/customers");
+      const data = await res.json();
+      setCustomers(data);
+    } catch {
+      setMessage("Failed to load customers");
+    }
   };
 
   useEffect(() => {
     fetchCustomers();
   }, []);
 
+  // Add customer
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage("");
@@ -39,7 +44,32 @@ function App() {
       setName("");
       setEmail("");
       fetchCustomers();
+    } catch {
+      setMessage("Server error");
+    }
+  };
 
+  // Delete customer
+  const deleteCustomer = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this customer?")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `http://localhost:3000/customers/${id}`,
+        { method: "DELETE" }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage(data.message);
+        return;
+      }
+
+      setMessage("Customer deleted successfully");
+      fetchCustomers();
     } catch {
       setMessage("Server error");
     }
@@ -80,6 +110,19 @@ function App() {
           {customers.map((c) => (
             <li key={c.id}>
               <strong>{c.name}</strong> — {c.email}
+              <button
+                style={{
+                  marginLeft: "10px",
+                  backgroundColor: "red",
+                  color: "white",
+                  border: "none",
+                  padding: "4px 8px",
+                  cursor: "pointer"
+                }}
+                onClick={() => deleteCustomer(c.id)}
+              >
+                Delete
+              </button>
             </li>
           ))}
         </ul>

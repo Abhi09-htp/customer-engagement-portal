@@ -49,6 +49,7 @@ app.post("/customers", async (req, res) => {
   } catch (err) {
     console.error("POST /customers error:", err.message);
 
+    // duplicate email error
     if (err.code === "23505") {
       return res.status(409).json({
         message: "Customer with this email already exists"
@@ -57,6 +58,33 @@ app.post("/customers", async (req, res) => {
 
     res.status(500).json({
       message: "Failed to add customer"
+    });
+  }
+});
+
+// DELETE customer by id
+app.delete("/customers/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      "DELETE FROM customers WHERE id = $1 RETURNING *",
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        message: "Customer not found"
+      });
+    }
+
+    res.json({
+      message: "Customer deleted successfully"
+    });
+  } catch (err) {
+    console.error("DELETE /customers error:", err.message);
+    res.status(500).json({
+      message: "Failed to delete customer"
     });
   }
 });
