@@ -6,80 +6,95 @@ function App() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
 
-  // Fetch customers
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+
   const fetchCustomers = async () => {
-    try {
-      const res = await fetch("http://localhost:3000/customers");
-      const data = await res.json();
-      setCustomers(data);
-    } catch {
-      setMessage("Failed to load customers");
-    }
+    const res = await fetch("http://localhost:3000/customers");
+    const data = await res.json();
+    setCustomers(data);
   };
 
   useEffect(() => {
     fetchCustomers();
   }, []);
 
-  // Add customer
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage("");
 
-    try {
-      const res = await fetch("http://localhost:3000/customers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email })
-      });
+    const res = await fetch("http://localhost:3000/customers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email })
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (!res.ok) {
-        setMessage(data.message);
-        return;
-      }
-
-      setMessage("Customer added successfully");
-      setName("");
-      setEmail("");
-      fetchCustomers();
-    } catch {
-      setMessage("Server error");
-    }
-  };
-
-  // Delete customer
-  const deleteCustomer = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this customer?")) {
+    if (!res.ok) {
+      setMessage(data.message);
       return;
     }
 
-    try {
-      const res = await fetch(
-        `http://localhost:3000/customers/${id}`,
-        { method: "DELETE" }
-      );
+    setMessage("Customer added successfully");
+    setName("");
+    setEmail("");
+    fetchCustomers();
+  };
 
-      const data = await res.json();
+  const deleteCustomer = async (id) => {
+    if (!window.confirm("Delete this customer?")) return;
 
-      if (!res.ok) {
-        setMessage(data.message);
-        return;
-      }
+    await fetch(`http://localhost:3000/customers/${id}`, {
+      method: "DELETE"
+    });
 
-      setMessage("Customer deleted successfully");
-      fetchCustomers();
-    } catch {
-      setMessage("Server error");
+    setMessage("Customer deleted successfully");
+    fetchCustomers();
+  };
+
+  const startEdit = (c) => {
+    setEditingId(c.id);
+    setEditName(c.name);
+    setEditEmail(c.email);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const saveEdit = async (id) => {
+    const res = await fetch(`http://localhost:3000/customers/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: editName, email: editEmail })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setMessage(data.message);
+      return;
     }
+
+    setMessage("Customer updated successfully");
+    cancelEdit();
+    fetchCustomers();
   };
 
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial" }}>
-      <h1>Customer Engagement Portal</h1>
+    <div style={{
+      maxWidth: "700px",
+      margin: "40px auto",
+      padding: "20px",
+      border: "1px solid #ddd",
+      borderRadius: "8px",
+      fontFamily: "Arial"
+    }}>
+      <h1 style={{ textAlign: "center" }}>Customer Engagement Portal</h1>
 
-      <h2>Add Customer</h2>
+      <h3>Add Customer</h3>
 
       <form onSubmit={handleSubmit}>
         <input
@@ -87,6 +102,7 @@ function App() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
+          style={{ width: "100%", padding: "8px" }}
         />
         <br /><br />
         <input
@@ -94,35 +110,55 @@ function App() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          style={{ width: "100%", padding: "8px" }}
         />
         <br /><br />
-        <button type="submit">Add Customer</button>
+        <button style={{ padding: "8px 16px" }}>Add Customer</button>
       </form>
 
-      {message && <p>{message}</p>}
+      {message && <p style={{ marginTop: "10px" }}>{message}</p>}
 
-      <h2>Customers</h2>
+      <hr />
+
+      <h3>Customers</h3>
 
       {customers.length === 0 ? (
         <p>No customers found</p>
       ) : (
-        <ul>
+        <ul style={{ paddingLeft: "0", listStyle: "none" }}>
           {customers.map((c) => (
-            <li key={c.id}>
-              <strong>{c.name}</strong> — {c.email}
-              <button
-                style={{
-                  marginLeft: "10px",
-                  backgroundColor: "red",
-                  color: "white",
-                  border: "none",
-                  padding: "4px 8px",
-                  cursor: "pointer"
-                }}
-                onClick={() => deleteCustomer(c.id)}
-              >
-                Delete
-              </button>
+            <li key={c.id} style={{ marginBottom: "10px" }}>
+              {editingId === c.id ? (
+                <>
+                  <input value={editName}
+                    onChange={(e) => setEditName(e.target.value)} />
+                  <input value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    style={{ marginLeft: "5px" }} />
+                  <button onClick={() => saveEdit(c.id)}>Save</button>
+                  <button onClick={cancelEdit} style={{ marginLeft: "5px" }}>
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <strong>{c.name}</strong> — {c.email}
+                  <button onClick={() => startEdit(c)} style={{ marginLeft: "10px" }}>
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => deleteCustomer(c.id)}
+                    style={{
+                      marginLeft: "5px",
+                      background: "red",
+                      color: "white",
+                      border: "none",
+                      padding: "4px 8px"
+                    }}>
+                    Delete
+                  </button>
+                </>
+              )}
             </li>
           ))}
         </ul>
