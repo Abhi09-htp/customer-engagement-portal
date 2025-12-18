@@ -12,6 +12,44 @@ app.use(cors({
 
 app.use(express.json());
 
+// Add this RIGHT AFTER: app.use(express.json());
+
+// ============================================
+// DIAGNOSTIC ROUTE - Helps us debug connection
+// ============================================
+app.get('/health', async (req, res) => {
+  console.log('🩺 Health check called at:', new Date().toISOString());
+  
+  const healthReport = {
+    status: 'checking',
+    timestamp: new Date().toISOString(),
+    database: {
+      connectionUrlExists: !!process.env.DATABASE_URL,
+      connectionTest: 'pending',
+      error: null
+    }
+  };
+
+  try {
+    // Try a simple query
+    const result = await pool.query('SELECT NOW() as current_time');
+    healthReport.status = 'healthy';
+    healthReport.database.connectionTest = 'success';
+    healthReport.database.currentTime = result.rows[0].current_time;
+    console.log('✅ Health check: Database connected successfully');
+  } catch (error) {
+    healthReport.status = 'unhealthy';
+    healthReport.database.connectionTest = 'failed';
+    healthReport.database.error = {
+      message: error.message,
+      code: error.code || 'NO_CODE'
+    };
+    console.log('❌ Health check: Database connection failed:', error.message);
+  }
+
+  res.json(healthReport);
+});
+
 // Home route
 app.get("/", (req, res) => {
   res.json({ message: "Customer Engagement Portal API" });
