@@ -1,39 +1,51 @@
-// server/db.js - UPDATED VERSION
-// This file creates the connection to PostgreSQL database
-
+// server/db.js - UPDATED with immediate connection test
 const { Pool } = require('pg');
 
-console.log('🔍 DEBUG: Starting database connection setup...');
+console.log('🔍 Step 1: Starting database connection setup...');
 
-// Get the database URL from Railway's environment variable
+// Get the database URL
 const connectionString = process.env.DATABASE_URL;
 
-// Log part of the URL (but hide password for security)
-if (connectionString) {
-  const safeUrl = connectionString.replace(/:[^:]*@/, ':****@');
-  console.log('🔍 DEBUG: DATABASE_URL found (partial):', safeUrl);
+if (!connectionString) {
+  console.log('❌ ERROR: DATABASE_URL is empty!');
 } else {
-  console.log('❌ ERROR: DATABASE_URL is empty or not found!');
+  // Hide password in logs
+  const safeUrl = connectionString.replace(/:([^:]+)@/, ':****@');
+  console.log('✅ Step 2: DATABASE_URL found:', safeUrl);
 }
 
-// Create the database connection pool
+// Create database connection with SSL
 const pool = new Pool({
   connectionString: connectionString,
   
-  // ⚠️ CRITICAL FOR RAILWAY: This enables SSL (secure connection)
+  // ⚠️ CRITICAL FOR RAILWAY - MUST BE EXACTLY THIS:
   ssl: {
-    rejectUnauthorized: false  // Allows Railway's self-signed certificate
+    rejectUnauthorized: false
   }
 });
 
-// Test the connection when server starts
-pool.on('connect', () => {
-  console.log('✅ SUCCESS: Connected to PostgreSQL database');
-});
+// ⚠️ IMPORTANT: Test connection IMMEDIATELY when server starts
+console.log('🔍 Step 3: Testing database connection now...');
 
-pool.on('error', (err) => {
-  console.error('❌ FATAL: Database connection error:', err.message);
-  console.error('❌ Error details:', err);
-});
+pool.connect()
+  .then((client) => {
+    console.log('🎉 Step 4: SUCCESS! Connected to PostgreSQL database');
+    
+    // Test a simple query
+    return client.query('SELECT NOW() as current_time')
+      .then((result) => {
+        console.log('🕐 Step 5: Database time is:', result.rows[0].current_time);
+        client.release(); // Return client to pool
+      })
+      .catch((queryErr) => {
+        console.error('❌ Step 5: Query failed:', queryErr.message);
+        client.release();
+      });
+  })
+  .catch((connectErr) => {
+    console.error('❌ Step 4: CONNECTION FAILED! Error:', connectErr.message);
+    console.error('Full error details:', connectErr);
+  });
 
+// Export for use in index.js
 module.exports = pool;
