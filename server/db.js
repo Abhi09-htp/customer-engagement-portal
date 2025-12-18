@@ -1,36 +1,46 @@
-// server/db.js - SIMPLE VERSION (No connection test on startup)
+// server/db.js - BULLETPROOF VERSION
 const { Pool } = require('pg');
 
-console.log('🔧 Creating database connection pool...');
+console.log('🚀 STEP 1: Loading database configuration...');
 
-// Get the database URL
+// Try to load dotenv, but don't crash if it fails
+try {
+  require('dotenv').config();
+  console.log('✅ dotenv loaded (for local development)');
+} catch (dotenvError) {
+  console.log('⚠️ dotenv not available (OK in production)');
+}
+
+// Get database URL
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
-  console.log('❌ FATAL: DATABASE_URL is empty!');
-  process.exit(1); // Stop the app if no database URL
+  console.error('❌ FATAL ERROR: DATABASE_URL is not set!');
+  console.error('Please check Railway environment variables.');
+  process.exit(1); // Exit gracefully with error code
 }
 
-// Create database connection with SSL
+console.log('✅ STEP 2: DATABASE_URL found (starting with):', 
+  connectionString.substring(0, 50) + '...');
+
+// Create pool with SSL for Railway
 const pool = new Pool({
   connectionString: connectionString,
-  
-  // ⚠️ CRITICAL FOR RAILWAY:
   ssl: {
     rejectUnauthorized: false
   }
 });
 
-// Log when clients connect (for debugging)
+// Log connection events
 pool.on('connect', () => {
-  console.log('✅ New database client connected');
+  console.log('✅ New database connection established');
 });
 
 pool.on('error', (err) => {
   console.error('❌ Database pool error:', err.message);
+  // Don't crash - just log the error
 });
 
-console.log('✅ Database pool created successfully');
+console.log('✅ STEP 3: Database connection pool created');
 
-// Export for use in index.js
 module.exports = pool;

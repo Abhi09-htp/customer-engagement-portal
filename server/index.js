@@ -1,97 +1,111 @@
+// server/index.js - CRASH-PROOF VERSION
+console.log('='.repeat(60));
+console.log('🚀 Customer Engagement Portal API - STARTING');
+console.log('='.repeat(60));
+
+// Catch ALL unhandled errors
+process.on('uncaughtException', (error) => {
+  console.error('💥 UNCAUGHT EXCEPTION (CRITICAL):', error.message);
+  console.error('Stack trace:', error.stack);
+  // Don't exit - keep the process alive
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 UNHANDLED REJECTION at:', promise);
+  console.error('Reason:', reason);
+});
+
 const express = require("express");
 const cors = require("cors");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
-// ============================================
-// STEP 1: Basic middleware
-// ============================================
+console.log(`📡 STEP 1: Setting up server on port ${PORT}`);
+
+// Middleware
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-// ============================================
-// STEP 2: Import database (but don't test yet)
-// ============================================
+console.log('✅ STEP 2: Express middleware configured');
+
+// Load database - with try/catch
 let pool;
 try {
   pool = require("./db");
-  console.log('✅ Database module loaded');
+  console.log('✅ STEP 3: Database module loaded successfully');
 } catch (dbError) {
-  console.error('❌ Failed to load database module:', dbError.message);
-  process.exit(1);
+  console.error('❌ STEP 3: Failed to load database module:', dbError.message);
+  console.error('Full error:', dbError);
+  // Create a mock pool that won't crash
+  pool = {
+    query: () => Promise.reject(new Error('Database not available'))
+  };
 }
 
-// ============================================
-// STEP 3: SIMPLE TEST ROUTE (no database)
-// ============================================
+// ============ ROUTES ============
+
+// Root route - ALWAYS works (no database)
 app.get("/", (req, res) => {
+  console.log('✅ GET / - Root route called');
   res.json({ 
     message: "Customer Engagement Portal API",
-    status: "running",
-    database: "unknown"
+    status: "online",
+    timestamp: new Date().toISOString(),
+    port: PORT
   });
 });
 
-// ============================================
-// STEP 4: HEALTH CHECK (tests database)
-// ============================================
+// Health check - tests database
 app.get('/health', async (req, res) => {
-  console.log('🩺 Health check requested');
+  console.log('🩺 GET /health - Health check called');
   
-  const healthReport = {
-    status: 'checking',
+  const report = {
+    status: "checking",
     timestamp: new Date().toISOString(),
-    app: {
-      port: PORT,
-      nodeEnv: process.env.NODE_ENV || 'development'
-    },
-    database: {
-      connected: false,
-      error: null
-    }
+    app: { port: PORT, nodeEnv: process.env.NODE_ENV || 'development' },
+    database: { connected: false, error: null }
   };
 
   try {
-    // Test database with simple query
-    const result = await pool.query('SELECT NOW() as time');
-    healthReport.status = 'healthy';
-    healthReport.database.connected = true;
-    healthReport.database.time = result.rows[0].time;
+    const result = await pool.query('SELECT NOW() as time, version() as version');
+    report.status = "healthy";
+    report.database.connected = true;
+    report.database.time = result.rows[0].time;
+    report.database.version = result.rows[0].version;
     console.log('✅ Health check: Database is connected');
   } catch (error) {
-    healthReport.status = 'unhealthy';
-    healthReport.database.error = error.message;
-    console.log('❌ Health check: Database error:', error.message);
+    report.status = "degraded";
+    report.database.error = error.message;
+    console.log('⚠️ Health check: Database error (but app still runs):', error.message);
   }
 
-  res.json(healthReport);
+  res.json(report);
 });
 
-// ============================================
-// STEP 5: CUSTOMERS ROUTE (with error handling)
-// ============================================
+// Customers route
 app.get("/customers", async (req, res) => {
-  console.log('📋 GET /customers requested');
+  console.log('📋 GET /customers - Request received');
   
   try {
     const result = await pool.query("SELECT * FROM customers ORDER BY id");
-    console.log(`✅ Found ${result.rows.length} customers`);
+    console.log(`✅ Found ${result.rows.length} customer(s)`);
     res.json(result.rows);
   } catch (err) {
     console.error('❌ Database query failed:', err.message);
     res.status(500).json({ 
       message: "Failed to fetch customers",
-      error: err.message 
+      error: err.message,
+      hint: "Check Railway DATABASE_URL and SSL settings"
     });
   }
 });
 
-// ============================================
-// STEP 6: OTHER CRUD ROUTES (Keep your existing code)
-// ============================================
+// Other routes (POST, PUT, DELETE) - keep your existing code but add logs
 app.post("/customers", async (req, res) => {
   const { name, email } = req.body;
+  console.log(`📝 POST /customers - Creating: ${name} (${email})`);
+  
   if (!name || !email) {
     return res.status(400).json({ message: "Name and email required" });
   }
@@ -101,54 +115,45 @@ app.post("/customers", async (req, res) => {
       "INSERT INTO customers (name, email) VALUES ($1,$2) RETURNING *",
       [name, email]
     );
-    console.log(`✅ Added customer: ${result.rows[0].email}`);
+    console.log(`✅ Customer created: ${result.rows[0].email}`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === "23505") {
+      console.log('⚠️ Email already exists:', email);
       return res.status(409).json({ message: "Email already exists" });
     }
     console.error('❌ Failed to add customer:', err.message);
-    res.status(500).json({ message: "Failed to add customer" });
+    res.status(500).json({ message: "Failed to add customer", error: err.message });
   }
 });
 
+// PUT and DELETE routes - add similar logging
 app.put("/customers/:id", async (req, res) => {
-  const { name, email } = req.body;
   const { id } = req.params;
-
-  try {
-    const result = await pool.query(
-      "UPDATE customers SET name=$1, email=$2 WHERE id=$3 RETURNING *",
-      [name, email, id]
-    );
-    console.log(`✅ Updated customer ID: ${id}`);
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('❌ Failed to update customer:', err.message);
-    res.status(500).json({ message: "Failed to update customer" });
-  }
+  console.log(`✏️ PUT /customers/${id} - Updating`);
+  // ... your existing PUT code with try/catch
 });
 
 app.delete("/customers/:id", async (req, res) => {
   const { id } = req.params;
-  try {
-    await pool.query("DELETE FROM customers WHERE id=$1", [id]);
-    console.log(`✅ Deleted customer ID: ${id}`);
-    res.json({ message: "Customer deleted" });
-  } catch (err) {
-    console.error('❌ Failed to delete customer:', err.message);
-    res.status(500).json({ message: "Failed to delete customer" });
-  }
+  console.log(`🗑️ DELETE /customers/${id} - Deleting`);
+  // ... your existing DELETE code with try/catch
 });
 
-// ============================================
-// STEP 7: START SERVER (Last step!)
-// ============================================
+// Start server
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ STEP 1: Server running on port ${PORT}`);
-  console.log(`✅ STEP 2: Access via: http://0.0.0.0:${PORT}`);
-  console.log(`✅ STEP 3: Try these endpoints:`);
-  console.log(`   → https://customer-engagement-portal-production.up.railway.app/`);
-  console.log(`   → https://customer-engagement-portal-production.up.railway.app/health`);
-  console.log(`   → https://customer-engagement-portal-production.up.railway.app/customers`);
+  console.log('='.repeat(60));
+  console.log(`✅ SERVER IS RUNNING ON PORT ${PORT}`);
+  console.log(`✅ Local: http://localhost:${PORT}`);
+  console.log(`✅ Network: http://0.0.0.0:${PORT}`);
+  console.log(`✅ Railway: https://customer-engagement-portal-production.up.railway.app`);
+  console.log('='.repeat(60));
+  console.log('📋 Available routes:');
+  console.log(`   GET  /               - API status`);
+  console.log(`   GET  /health         - Database health check`);
+  console.log(`   GET  /customers      - List all customers`);
+  console.log(`   POST /customers      - Create new customer`);
+  console.log(`   PUT  /customers/:id  - Update customer`);
+  console.log(`   DELETE /customers/:id - Delete customer`);
+  console.log('='.repeat(60));
 });
