@@ -1,7 +1,11 @@
-// server/index.js - UPDATED with proper Railway port handling
+// server/index.js - UPDATED with startup delay
 console.log('='.repeat(60));
 console.log('🚀 Customer Engagement Portal API - STARTING');
 console.log('='.repeat(60));
+
+// Add a small delay for Railway proxy to be ready
+console.log('⏳ Waiting 1 second for Railway proxy to initialize...');
+await new Promise(resolve => setTimeout(resolve, 1000));
 
 // CRITICAL: Log ALL environment variables (for debugging)
 console.log('🔧 Environment check:');
@@ -15,14 +19,23 @@ const cors = require("cors");
 
 const app = express();
 
-// ⚠️ CRITICAL FIX: Railway ALWAYS provides PORT, don't default to 8080
-const PORT = process.env.PORT || 3000;  // Change 8080 to 3000
+// Use Railway's PORT or default to 8080
+const PORT = process.env.PORT || 8080;
 
 console.log(`📡 STEP 1: Railway provided PORT = ${process.env.PORT}`);
 console.log(`📡 STEP 1: Using PORT = ${PORT}`);
 
+// Add a custom header to verify requests are reaching us
+app.use((req, res, next) => {
+  res.setHeader('X-API-Source', 'Customer-Engagement-Portal');
+  next();
+});
+
 // Middleware
-app.use(cors({ origin: "*" }));
+app.use(cors({ 
+  origin: "*",
+  credentials: true
+}));
 app.use(express.json());
 
 console.log('✅ STEP 2: Express middleware configured');
@@ -138,20 +151,23 @@ app.delete("/customers/:id", async (req, res) => {
   // ... your existing DELETE code with try/catch
 });
 
-// Start server
-app.listen(PORT, "0.0.0.0", () => {
-  console.log('='.repeat(60));
-  console.log(`✅ SERVER IS RUNNING ON PORT ${PORT}`);
-  console.log(`✅ Local: http://localhost:${PORT}`);
-  console.log(`✅ Network: http://0.0.0.0:${PORT}`);
-  console.log(`✅ Railway: https://customer-engagement-portal-production.up.railway.app`);
-  console.log('='.repeat(60));
-  console.log('📋 Available routes:');
-  console.log(`   GET  /               - API status`);
-  console.log(`   GET  /health         - Database health check`);
-  console.log(`   GET  /customers      - List all customers`);
-  console.log(`   POST /customers      - Create new customer`);
-  console.log(`   PUT  /customers/:id  - Update customer`);
-  console.log(`   DELETE /customers/:id - Delete customer`);
-  console.log('='.repeat(60));
+// Wrap server start in async function
+async function startServer() {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log('='.repeat(60));
+    console.log(`✅ SERVER IS RUNNING ON PORT ${PORT}`);
+    console.log(`✅ Container Internal: http://0.0.0.0:${PORT}`);
+    console.log(`✅ Railway Public: https://customer-engagement-portal-production.up.railway.app`);
+    console.log(`✅ Test these endpoints:`);
+    console.log(`   • https://customer-engagement-portal-production.up.railway.app/`);
+    console.log(`   • https://customer-engagement-portal-production.up.railway.app/health`);
+    console.log(`   • https://customer-engagement-portal-production.up.railway.app/customers`);
+    console.log('='.repeat(60));
+  });
+}
+
+// Handle startup errors
+startServer().catch(err => {
+  console.error('💥 Failed to start server:', err);
+  process.exit(1);
 });
