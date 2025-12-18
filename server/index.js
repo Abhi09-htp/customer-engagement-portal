@@ -1,27 +1,25 @@
-// server/index.js - CRASH-PROOF VERSION
+// server/index.js - UPDATED with proper Railway port handling
 console.log('='.repeat(60));
 console.log('🚀 Customer Engagement Portal API - STARTING');
 console.log('='.repeat(60));
 
-// Catch ALL unhandled errors
-process.on('uncaughtException', (error) => {
-  console.error('💥 UNCAUGHT EXCEPTION (CRITICAL):', error.message);
-  console.error('Stack trace:', error.stack);
-  // Don't exit - keep the process alive
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 UNHANDLED REJECTION at:', promise);
-  console.error('Reason:', reason);
-});
+// CRITICAL: Log ALL environment variables (for debugging)
+console.log('🔧 Environment check:');
+console.log('  PORT:', process.env.PORT || '(not set)');
+console.log('  NODE_ENV:', process.env.NODE_ENV || '(not set)');
+console.log('  DATABASE_URL present?', !!process.env.DATABASE_URL ? 'YES' : 'NO');
+console.log('='.repeat(60));
 
 const express = require("express");
 const cors = require("cors");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-console.log(`📡 STEP 1: Setting up server on port ${PORT}`);
+// ⚠️ CRITICAL FIX: Railway ALWAYS provides PORT, don't default to 8080
+const PORT = process.env.PORT || 3000;  // Change 8080 to 3000
+
+console.log(`📡 STEP 1: Railway provided PORT = ${process.env.PORT}`);
+console.log(`📡 STEP 1: Using PORT = ${PORT}`);
 
 // Middleware
 app.use(cors({ origin: "*" }));
